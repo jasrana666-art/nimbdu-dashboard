@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NIMBDU — Live Projects Command Center</title>
+<meta name="description" content="Real-time status dashboard for all NIMBDU deployed projects. Auto health-checks, uptime, revenue tracking.">
+<style>
+:root{
+  --bg:#05050a;--surface:#0c0c14;--card:#11111c;--text:#eef0f6;--muted:#9a9db1;--dim:#5d6075;
+  --stroke:rgba(255,255,255,.08);--stroke-hi:rgba(255,255,255,.16);
+  --ok:#4ade80;--warn:#fbbf24;--err:#f87171;--violet:#8b7cf6;--cyan:#6ec3ff;--warm:#ffd9a0;
+  --sans:'Segoe UI',Inter,-apple-system,sans-serif;--mono:'SF Mono',Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.04;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 110% 70% at 50% -10%,rgba(139,124,246,.10),transparent 60%)}
+.wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:0 1.5rem}
+
+/* header */
+header{padding:3.2rem 0 2rem;display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:1.4rem}
+h1{font-size:clamp(1.7rem,4vw,2.6rem);font-weight:800;letter-spacing:-.02em;line-height:1.1}
+h1 span{background:linear-gradient(105deg,var(--warm),var(--violet) 50%,var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--muted);font-size:.95rem;font-weight:300;margin-top:.4rem}
+.head-actions{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap}
+.live-pill{display:inline-flex;align-items:center;gap:.55rem;padding:.5rem 1.1rem;border-radius:999px;
+  border:1px solid #26361f;background:rgba(74,222,128,.06);color:var(--ok);font-size:.82rem;font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.btn{padding:.6rem 1.3rem;border-radius:10px;font-weight:600;font-size:.85rem;cursor:pointer;border:1px solid var(--stroke-hi);
+  background:var(--card);color:var(--text);font-family:var(--sans);transition:all .3s}
+.btn:hover{border-color:var(--violet);box-shadow:0 0 20px rgba(139,124,246,.2)}
+.btn.checking{opacity:.55;pointer-events:none}
+
+/* summary */
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1.1rem;padding:0 0 2.2rem}
+.stat{background:linear-gradient(160deg,var(--card),var(--surface));border:1px solid var(--stroke);border-radius:16px;padding:1.3rem 1.2rem}
+.stat b{font-size:1.9rem;font-weight:800;display:block;letter-spacing:-.02em}
+.stat b.ok{color:var(--ok)}.stat b.err{color:var(--err)}.stat b.v{color:var(--violet)}.stat b.w{color:var(--warm)}
+.stat span{font-family:var(--mono);font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+
+/* controls */
+.controls{display:flex;gap:.7rem;flex-wrap:wrap;padding-bottom:1.6rem;align-items:center}
+.chip{padding:.42rem 1.05rem;border-radius:999px;border:1px solid var(--stroke);background:transparent;color:var(--muted);
+  font-size:.8rem;font-weight:600;cursor:pointer;transition:all .25s;font-family:var(--sans)}
+.chip:hover{border-color:var(--stroke-hi);color:var(--text)}
+.chip.active{background:linear-gradient(135deg,var(--violet),#6a5ae0);color:#fff;border-color:transparent}
+.last-check{margin-left:auto;font-family:var(--mono);font-size:.7rem;color:var(--dim);letter-spacing:.06em}
+
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1.2rem;padding-bottom:2.5rem}
+.proj{background:linear-gradient(160deg,var(--card),var(--surface));border:1px solid var(--stroke);border-radius:18px;
+  padding:1.5rem;position:relative;overflow:hidden;transition:all .35s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column}
+.proj:hover{transform:translateY(-3px);border-color:var(--stroke-hi);box-shadow:0 18px 44px rgba(0,0,0,.4)}
+.proj::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;opacity:0;transition:opacity .35s}
+.proj.s-live::before{background:linear-gradient(90deg,var(--ok),transparent);opacity:1}
+.proj.s-down::before{background:linear-gradient(90deg,var(--err),transparent);opacity:1}
+.proj.s-slow::before{background:linear-gradient(90deg,var(--warn),transparent);opacity:1}
+.proj-head{display:flex;justify-content:space-between;align-items:flex-start;gap:.8rem;margin-bottom:.5rem}
+.proj h3{font-size:1.02rem;font-weight:700;letter-spacing:-.01em}
+.badge{font-size:.64rem;font-weight:800;letter-spacing:.12em;padding:.28rem .7rem;border-radius:999px;white-space:nowrap;display:inline-flex;align-items:center;gap:.4rem}
+.b-live{background:rgba(74,222,128,.1);color:var(--ok)}
+.b-live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok);animation:pulse 1.8s infinite}
+.b-down{background:rgba(248,113,113,.1);color:var(--err)}
+.b-down::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--err)}
+.b-slow{background:rgba(251,191,36,.1);color:var(--warn)}
+.b-slow::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--warn)}
+.b-check{background:rgba(139,124,246,.1);color:var(--violet)}
+.b-check::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--violet);animation:pulse 1.2s infinite}
+.proj .desc{color:var(--muted);font-size:.86rem;font-weight:300;flex-grow:1;margin-bottom:1rem}
+.meta{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.tag{font-size:.64rem;font-weight:700;letter-spacing:.1em;padding:.22rem .65rem;border-radius:999px;border:1px solid var(--stroke);color:var(--dim);text-transform:uppercase}
+.tag.rev{border-color:rgba(255,217,160,.35);color:var(--warm)}
+.meter{height:3px;border-radius:3px;background:rgba(255,255,255,.06);margin-bottom:1rem;overflow:hidden}
+.meter i{display:block;height:100%;width:0%;border-radius:3px;background:linear-gradient(90deg,var(--ok),var(--cyan));transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.meter.slow i{background:linear-gradient(90deg,var(--warn),var(--warm))}
+.meter.down i{background:var(--err);width:100%!important}
+.proj-foot{display:flex;justify-content:space-between;align-items:center;gap:.6rem}
+.latency{font-family:var(--mono);font-size:.72rem;color:var(--dim)}
+.links{display:flex;gap:.5rem}
+.links a{font-size:.72rem;font-weight:700;padding:.42rem .9rem;border-radius:8px;text-decoration:none;transition:all .25s}
+.l-open{background:linear-gradient(135deg,rgba(139,124,246,.2),rgba(110,195,255,.1));color:var(--text);border:1px solid rgba(139,124,246,.35)}
+.l-open:hover{border-color:var(--violet);box-shadow:0 0 16px rgba(139,124,246,.25)}
+.l-repo{border:1px solid var(--stroke);color:var(--muted)}
+.l-repo:hover{color:var(--text);border-color:var(--stroke-hi)}
+
+/* footer */
+footer{border-top:1px solid var(--stroke);padding:1.8rem 0 2.6rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem;
+  color:var(--dim);font-family:var(--mono);font-size:.72rem;letter-spacing:.06em}
+footer a{color:var(--dim);text-decoration:none}.footer a:hover{color:var(--text)}
+
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(90px);z-index:100;
+  padding:.8rem 1.5rem;border-radius:999px;border:1px solid rgba(139,124,246,.5);
+  background:rgba(10,8,20,.9);backdrop-filter:blur(14px);font-size:.85rem;transition:transform .4s cubic-bezier(.2,.8,.2,1)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+@media(max-width:640px){.last-check{margin-left:0;width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div>
+    <h1>NIMBDU <span>Command Center</span></h1>
+    <p class="sub">Every deployed project, health-checked live from your browser.</p>
+  </div>
+  <div class="head-actions">
+    <div class="live-pill"><span class="dot"></span><span id="fleetStatus">Checking…</span></div>
+    <button class="btn" id="recheckBtn">↻ Recheck all</button>
+  </div>
+</header>
+
+<div class="summary">
+  <div class="stat"><b class="v" id="sTotal">0</b><span>Total projects</span></div>
+  <div class="stat"><b class="ok" id="sLive">0</b><span>Live now</span></div>
+  <div class="stat"><b class="err" id="sDown">0</b><span>Down / sleeping</span></div>
+  <div class="stat"><b class="w" id="sRev">$0</b><span>Est. monthly potential</span></div>
+</div>
+
+<div class="controls">
+  <button class="chip active" data-f="all">All</button>
+  <button class="chip" data-f="affiliate">Affiliate</button>
+  <button class="chip" data-f="tool">Free tools</button>
+  <button class="chip" data-f="service">Service</button>
+  <button class="chip" data-f="internal">Internal</button>
+  <span class="last-check" id="lastCheck">last check: —</span>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<footer>
+  <span>NIMBDU COMMAND CENTER · zero-cost fleet · GitHub Pages</span>
+  <span><a href="https://github.com/jasrana666-art?tab=repositories" target="_blank" rel="noopener">github.com/jasrana666-art →</a></span>
+</footer>
+</div>
+
+<div class="toast" id="toast">Health check complete</div>
+
+<script>
+const GH = "https://jasrana666-art.github.io";
+const PROJECTS = [
+  {name:"Fleet Hub", url:GH+"/nimbdu-projects/", repo:"jasrana666-art/nimbdu-projects", cat:"internal", origin:true,
+   desc:"Master index of all 10 fleet projects with live links.", tags:["HUB"], rev:0, revNote:""},
+  {name:"Systeme.io Affiliate", url:GH+"/nimbdu-projects/01-systeme-affiliate/", repo:"jasrana666-art/nimbdu-projects", cat:"affiliate", origin:true,
+   desc:"Review + landing for the 60% lifetime recurring commission program.", tags:["AFFILIATE","FREE TIER"], rev:582, revNote:"$102–582/mo @10 refs"},
+  {name:"Cloudways Affiliate", url:GH+"/nimbdu-projects/02-cloudways-affiliate/", repo:"jasrana666-art/nimbdu-projects", cat:"affiliate", origin:true,
+   desc:"Hosting review + $125/sale slab affiliate breakdown.", tags:["AFFILIATE","HOSTING"], rev:625, revNote:"$150–625/mo @5 sales"},
+  {name:"HubSpot Affiliate", url:GH+"/nimbdu-projects/03-hubspot-affiliate/", repo:"jasrana666-art/nimbdu-projects", cat:"affiliate", origin:true,
+   desc:"Free CRM review + 30% recurring (12 mo) affiliate math.", tags:["AFFILIATE","FREE TIER"], rev:360, revNote:"$180–360/mo @10 refs"},
+  {name:"AI Client Manager", url:GH+"/nimbdu-projects/04-openclaw-client-manager/", repo:"jasrana666-art/nimbdu-projects", cat:"service", origin:true,
+   desc:"Service page — AI agent handles follow-ups & invoice chasing.", tags:["SERVICE","B2B"], rev:200, revNote:"$49–149/mo per client"},
+  {name:"Email Signature Generator", url:GH+"/nimbdu-projects/05-email-signature-gen/", repo:"jasrana666-art/nimbdu-projects", cat:"tool", origin:true,
+   desc:"Working tool — live preview, copy rich/HTML to Gmail & Outlook.", tags:["TOOL","LEAD MAGNET"], rev:0, revNote:"traffic asset"},
+  {name:"Invoice Reminder Generator", url:GH+"/nimbdu-projects/06-invoice-reminder/", repo:"jasrana666-art/nimbdu-projects", cat:"tool", origin:true,
+   desc:"Working tool — 3-email escalation sequence, personalized.", tags:["TOOL","LEAD MAGNET"], rev:0, revNote:"traffic asset"},
+  {name:"Social Proof Widget", url:GH+"/nimbdu-projects/07-social-proof-widget/", repo:"jasrana666-art/nimbdu-projects", cat:"tool", origin:true,
+   desc:"Working tool — configure, live preview, copy embed code.", tags:["TOOL","WIDGET"], rev:0, revNote:"traffic asset"},
+  {name:"Testimonial Wall Builder", url:GH+"/nimbdu-projects/08-testimonial-platform/", repo:"jasrana666-art/nimbdu-projects", cat:"tool", origin:true,
+   desc:"Working tool — collect, manage, export wall of love.", tags:["TOOL","LEAD MAGNET"], rev:0, revNote:"traffic asset"},
+  {name:"Tech Tools Aggregator", url:GH+"/nimbdu-projects/09-tech-tools-aggregator/", repo:"jasrana666-art/nimbdu-projects", cat:"affiliate", origin:true,
+   desc:"12+ reviewed tools with filters — YouTube channel companion.", tags:["CONTENT","AFFILIATE"], rev:150, revNote:"affiliate + channel"},
+  {name:"Agent Dashboard", url:GH+"/nimbdu-projects/10-openclaw-dashboard/", repo:"jasrana666-art/nimbdu-projects", cat:"internal", origin:true,
+   desc:"Fleet ops dashboard — uptime, tasks, live chart.", tags:["INTERNAL"], rev:0, revNote:"ops tool"},
+  {name:"Pinwheel Galaxy", url:GH+"/pinwheel-galaxy/", repo:"jasrana666-art/pinwheel-galaxy", cat:"internal", origin:true,
+   desc:"Cinematic landing with live galaxy tuner — 4 palettes, real-time.", tags:["SHOWCASE","CRAFT"], rev:0, revNote:"portfolio piece"},
+  {name:"WriteEngin (Render)", url:"https://writeengin-1.onrender.com/", repo:"jasrana666-art/writeengin", cat:"service", origin:false,
+   desc:"AI content platform — Flask + PostgreSQL on Render free tier.", tags:["SAAS","FLASK"], rev:0, revNote:"cold-start ~50s"},
+];
+
+const grid = document.getElementById('grid');
+let activeFilter = 'all';
+const state = {};
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function cardHTML(p, i) {
+  const st = state[p.url] || {status:'checking', ms:0};
+  const badge = st.status==='live' ? '<span class="badge b-live">LIVE</span>'
+    : st.status==='down' ? '<span class="badge b-down">DOWN</span>'
+    : st.status==='slow' ? '<span class="badge b-slow">SLOW</span>'
+    : '<span class="badge b-check">CHECKING</span>';
+  const meterCls = st.status==='down'?'down':st.status==='slow'?'slow':'';
+  const pct = st.status==='live'?100:st.status==='slow'?60:0;
+  const latency = st.ms ? `${st.ms} ms` : '—';
+  return `<div class="proj s-${st.status==='checking'?'check':st.status}" data-cat="${p.cat}" data-i="${i}">
+    <div class="proj-head"><h3>${esc(p.name)}</h3>${badge}</div>
+    <div class="meta">${p.tags.map(t=>`<span class="tag">${t}</span>`).join('')}${p.rev?`<span class="tag rev">${p.revNote}</span>`:''}</div>
+    <p class="desc">${esc(p.desc)}</p>
+    <div class="meter ${meterCls}"><i style="width:${pct}%"></i></div>
+    <div class="proj-foot">
+      <span class="latency">${latency}</span>
+      <div class="links">
+        <a class="l-repo" href="https://github.com/${p.repo}" target="_blank" rel="noopener">Repo</a>
+        <a class="l-open" href="${p.url}" target="_blank" rel="noopener">Open →</a>
+      </div>
+    </div>
+  </div>`;
+}
+
+function render() {
+  const list = PROJECTS.map((p,i)=>({p,i})).filter(({p}) => activeFilter==='all' || p.cat===activeFilter);
+  grid.innerHTML = list.map(({p,i}) => cardHTML(p, i)).join('');
+}
+
+function updateCard(i) {
+  const p = PROJECTS[i];
+  const el = grid.querySelector(`[data-i="${i}"]`);
+  if (!el) return;
+  const st = state[p.url] || {status:'checking', ms:0};
+  el.className = `proj s-${st.status==='checking'?'check':st.status}`;
+  const badge = el.querySelector('.badge');
+  badge.className = 'badge ' + (st.status==='live'?'b-live':st.status==='down'?'b-down':st.status==='slow'?'b-slow':'b-check');
+  badge.textContent = st.status==='checking'?'CHECKING':st.status.toUpperCase();
+  const meter = el.querySelector('.meter');
+  meter.className = 'meter ' + (st.status==='down'?'down':st.status==='slow'?'slow':'');
+  meter.firstElementChild.style.width = (st.status==='live'?100:st.status==='slow'?60:0)+'%';
+  el.querySelector('.latency').textContent = st.ms ? st.ms+' ms' : '—';
+}
+
+function updateSummary() {
+  const vals = Object.values(state);
+  const live = vals.filter(s=>s.status==='live').length;
+  const down = vals.filter(s=>s.status==='down').length;
+  const slow = vals.filter(s=>s.status==='slow').length;
+  document.getElementById('sTotal').textContent = PROJECTS.length;
+  document.getElementById('sLive').textContent = live;
+  document.getElementById('sDown').textContent = down + slow;
+  const rev = PROJECTS.reduce((a,p)=>a+(p.rev||0),0);
+  document.getElementById('sRev').textContent = '$' + rev.toLocaleString();
+  const fs = document.getElementById('fleetStatus');
+  if (live === PROJECTS.length) { fs.textContent = 'All systems operational'; }
+  else if (live > 0) { fs.textContent = `${live}/${PROJECTS.length} operational`; }
+  else { fs.textContent = 'Status unknown'; }
+  document.getElementById('lastCheck').textContent = 'last check: ' + new Date().toLocaleTimeString();
+}
+
+async function checkOne(p, i) {
+  const t0 = performance.now();
+  try {
+    if (p.origin) {
+      // same-origin: real status code
+      const r = await fetch(p.url, {method:'HEAD', cache:'no-store'});
+      const ms = Math.round(performance.now() - t0);
+      state[p.url] = r.ok ? {status:'live', ms} : {status:'down', ms};
+    } else {
+      // cross-origin: no-cors probe — resolves = reachable
+      await fetch(p.url, {mode:'no-cors', cache:'no-store'});
+      const ms = Math.round(performance.now() - t0);
+      state[p.url] = ms > 8000 ? {status:'slow', ms} : {status:'live', ms};
+    }
+  } catch (e) {
+    const ms = Math.round(performance.now() - t0);
+    state[p.url] = ms > 8000 ? {status:'slow', ms} : {status:'down', ms};
+  }
+  updateCard(i);
+  updateSummary();
+}
+
+async function checkAll() {
+  const btn = document.getElementById('recheckBtn');
+  btn.classList.add('checking'); btn.textContent = 'Checking…';
+  await Promise.all(PROJECTS.map((p,i) => checkOne(p,i)));
+  btn.classList.remove('checking'); btn.textContent = '↻ Recheck all';
+  const t = document.getElementById('toast'); t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+document.getElementById('recheckBtn').addEventListener('click', checkAll);
+document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+  document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+  c.classList.add('active');
+  activeFilter = c.dataset.f;
+  render();
+  // re-apply known states on re-render
+  PROJECTS.forEach((_,i)=>updateCard(i));
+}));
+
+render();
+checkAll();
+</script>
+</body>
+</html>
